@@ -159,15 +159,12 @@ if uploaded_file:
                 unsafe_allow_html=True,
             )
 
-# Function to create a Project Specification PDF
+# Function to create a Project Specification PDF with improved layout
 def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers_img, rhinestones, ignore_colors, labels):
     buffer = io.BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
 
-    # Convert uploaded image file to PIL Image object
-    uploaded_image = Image.open(uploaded_image_file)
-
-    # Set up page layout
+    # Set up page dimensions
     page_width, page_height = A4
     margin = 40
     available_width = page_width - 2 * margin
@@ -190,45 +187,60 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
             draw_width = max_width
             draw_height = draw_width / aspect_ratio
 
-        pdf.drawImage(ImageReader(image), x, y - draw_height, width=draw_width, height=draw_height)
+        pdf.drawImage(ImageReader(image), x + (max_width - draw_width) / 2, y - draw_height, width=draw_width, height=draw_height)
 
-    # Add Colour Dot Map
-    pdf.drawString(margin, page_height - margin - 60, "Colour Dot Map:")
-    draw_image_with_aspect_ratio(pdf, color_dot_img, margin, page_height - margin - 330, available_width, 250)
+    # Add Colour Dot Map (Main focus)
+    color_dot_map_height = 250
+    color_dot_map_y = page_height - margin - 60
+    pdf.drawCentredString(page_width / 2, color_dot_map_y, "Colour Dot Map:")
+    draw_image_with_aspect_ratio(
+        pdf, 
+        color_dot_img, 
+        margin, 
+        color_dot_map_y - 20, 
+        available_width, 
+        color_dot_map_height
+    )
 
-    # Add Uploaded Image
-    uploaded_x = margin
-    uploaded_y = page_height - margin - 570
-    pdf.drawString(uploaded_x, uploaded_y + 110, "Uploaded Image:")
-    draw_image_with_aspect_ratio(pdf, uploaded_image, uploaded_x, uploaded_y, available_width / 2 - margin, 100)
+    # Add Uploaded Image and Number Dot Map side by side
+    image_section_y = color_dot_map_y - color_dot_map_height - 50  # Add buffer between sections
+    uploaded_image_width = (available_width / 2) - 10
+    pdf.drawString(margin, image_section_y, "Uploaded Image:")
+    draw_image_with_aspect_ratio(
+        pdf, 
+        Image.open(uploaded_image_file), 
+        margin, 
+        image_section_y - 20, 
+        uploaded_image_width, 
+        200
+    )
 
-    # Add Number Dot Map
-    number_x = margin + available_width / 2 + 10
-    number_y = page_height - margin - 570
-    pdf.drawString(number_x, number_y + 110, "Number Dot Map:")
-    draw_image_with_aspect_ratio(pdf, numbers_img, number_x, number_y, available_width / 2 - margin, 100)
+    pdf.drawString(margin + uploaded_image_width + 20, image_section_y, "Number Dot Map:")
+    draw_image_with_aspect_ratio(
+        pdf, 
+        numbers_img, 
+        margin + uploaded_image_width + 20, 
+        image_section_y - 20, 
+        uploaded_image_width, 
+        200
+    )
 
-    # Add Rhinestone Legend
-    legend_x = margin
-    legend_y = uploaded_y - 140
-    pdf.setFont("Helvetica-Bold", 12)
-    pdf.drawString(legend_x, legend_y + 30, "Rhinestone Legend:")
-    y_position = legend_y
+    # Add Rhinestone Legend below
+    legend_y = image_section_y - 250  # Add space below the images
+    pdf.drawString(margin, legend_y, "Rhinestone Legend:")
+
+    y_position = legend_y - 20
     box_size = 10  # Size of color box
 
     for i, rhinestone in enumerate(rhinestones):
         if ignore_colors[i]:
             continue
         dot_count = int(np.sum(labels == i))
-        
-        # Draw the color box
         pdf.setFillColorRGB(*tuple(int(rhinestone["color"][i:i+2], 16) / 255.0 for i in (1, 3, 5)))
-        pdf.rect(legend_x, y_position, box_size, box_size, fill=True, stroke=False)
-        
-        # Add text next to the box
+        pdf.rect(margin, y_position, box_size, box_size, fill=True, stroke=False)
         pdf.setFillColorRGB(0, 0, 0)
         pdf.setFont("Helvetica", 10)
-        pdf.drawString(legend_x + box_size + 5, y_position + 2, f"Rhinestone {i + 1}: {rhinestone['color']} - {dot_count} dots")
+        pdf.drawString(margin + box_size + 5, y_position + 2, f"Rhinestone {i + 1}: {rhinestone['color']} - {dot_count} dots")
         y_position -= 15
 
     pdf.save()
