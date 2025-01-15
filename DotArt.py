@@ -271,7 +271,22 @@ if uploaded_file:
                         text_height = text_bbox[3] - text_bbox[1]
                         text_x = x + (size_px - text_width) / 2
                         text_y = y + (size_px - text_height) / 2
-                        draw_numbers.ellipse([x, y, x + size_px, y + size_px], outline="gainsboro", width=1)
+
+                        # Draw the appropriate shape
+                        if dot_shape == "Circle":
+                            draw_numbers.ellipse([x, y, x + size_px, y + size_px], outline="gainsboro", width=1)
+                        elif dot_shape == "Square":
+                            draw_numbers.rectangle([x, y, x + size_px, y + size_px], outline="gainsboro", width=1)
+                        elif dot_shape == "Diamond":
+                            diamond_coords = [
+                                (x + size_px / 2, y),  # Top
+                                (x, y + size_px / 2),  # Left
+                                (x + size_px / 2, y + size_px),  # Bottom
+                                (x + size_px, y + size_px / 2),  # Right
+                            ]
+                            draw_numbers.polygon(diamond_coords, outline="gainsboro", width=1)
+
+                        # Draw the text
                         draw_numbers.text((text_x, text_y), text, fill="black", font=font)
 
         # Add scale bar to Number Dot Map
