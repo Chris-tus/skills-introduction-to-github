@@ -1,5 +1,7 @@
 streamlit
-Pillow
+pillow
 scikit-learn
 numpy
+firebase-admin
+google-cloud-storage
 reportlab
