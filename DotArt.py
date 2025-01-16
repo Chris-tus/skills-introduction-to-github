@@ -421,7 +421,7 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
 
 # Initialize Firebase Admin SDK using credentials from Streamlit secrets
 if not firebase_admin._apps:
-    firebase_creds = json.loads(st.secrets["firebase_credentials"])  # Load Firebase credentials from Streamlit secrets
+    firebase_creds = dict(st.secrets["firebase_credentials"])  # Convert AttrDict to a regular dictionary
     cred = credentials.Certificate(firebase_creds)
     firebase_admin.initialize_app(cred, {
         'storageBucket': st.secrets["firebase_storage_bucket"]  # Get the bucket name from Streamlit secrets
