@@ -7,6 +7,7 @@ import zipfile
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
+from urllib.parse import urlencode
 
 # Function to reduce colors using K-Means
 def reduce_colors(image, num_colors):
@@ -412,31 +413,64 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
     pdf.save()
     buffer.seek(0)
     return buffer
+    
+# Example payment URL (Replace with your actual payment gateway checkout link)
+PAYMENT_BASE_URL = "https://buy.stripe.com/bIY3cs4Kj52g8dqcMM"
 
-# Add a download button for ZIP
+# Check for payment confirmation via query parameters
+query_params = st.experimental_get_query_params()
+payment_confirmed = query_params.get("paid", ["false"])[0] == "true"
+
+# Create a unique identifier for each file generation session
+if "download_session_id" not in st.session_state:
+    st.session_state.download_session_id = str(st.session_state.run_id)  # Unique session ID per run
+
+# Payment URL with session validation
+payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
+
 if uploaded_file:
-    with io.BytesIO() as zip_buffer:
-        with zipfile.ZipFile(zip_buffer, "w") as zf:
-            # Save Color Dot Map
-            color_dot_buffer = io.BytesIO()
-            color_dot_img.save(color_dot_buffer, format="PNG", dpi=(cm_to_pixels, cm_to_pixels))
-            zf.writestr("color_dot_map.png", color_dot_buffer.getvalue())
-
-            # Save Number Dot Map
-            number_dot_buffer = io.BytesIO()
-            numbers_img.save(number_dot_buffer, format="PNG", dpi=(cm_to_pixels, cm_to_pixels))
-            zf.writestr("number_dot_map.png", number_dot_buffer.getvalue())
-
-            # Save Project Specification PDF
-            pdf_buffer = create_project_specification_pdf(uploaded_file, color_dot_img, numbers_img, rhinestones, ignore_colors, labels)
-            zf.writestr("project_specification.pdf", pdf_buffer.getvalue())
-
-        zip_buffer.seek(0)
-
-        # Add download button
-        st.download_button(
-            label="Download Project ZIP",
-            data=zip_buffer,
-            file_name=f"{project_title.replace(' ', '_')}.zip",
-            mime="application/zip"
+    if not payment_confirmed:
+        # Force payment before download
+        st.markdown(
+            f"""
+            <a href="{payment_url}" target="_blank">
+                <button style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    Proceed to Payment
+                </button>
+            </a>
+            """,
+            unsafe_allow_html=True,
         )
+        st.warning("Complete payment to enable the download. This payment applies to this download session only.")
+    else:
+        # Check that the session ID matches
+        session_id = query_params.get("session_id", [""])[0]
+        if session_id != st.session_state.download_session_id:
+            st.error("Payment validation failed. Please complete payment again.")
+        else:
+            # Payment validated for this session; allow download
+            with io.BytesIO() as zip_buffer:
+                with zipfile.ZipFile(zip_buffer, "w") as zf:
+                    # Save Color Dot Map
+                    color_dot_buffer = io.BytesIO()
+                    color_dot_img.save(color_dot_buffer, format="PNG", dpi=(cm_to_pixels, cm_to_pixels))
+                    zf.writestr("color_dot_map.png", color_dot_buffer.getvalue())
+
+                    # Save Number Dot Map
+                    number_dot_buffer = io.BytesIO()
+                    numbers_img.save(number_dot_buffer, format="PNG", dpi=(cm_to_pixels, cm_to_pixels))
+                    zf.writestr("number_dot_map.png", number_dot_buffer.getvalue())
+
+                    # Save Project Specification PDF
+                    pdf_buffer = create_project_specification_pdf(uploaded_file, color_dot_img, numbers_img, rhinestones, ignore_colors, labels)
+                    zf.writestr("project_specification.pdf", pdf_buffer.getvalue())
+
+                zip_buffer.seek(0)
+
+                # Add download button
+                st.download_button(
+                    label="Download Project ZIP",
+                    data=zip_buffer,
+                    file_name=f"{project_title.replace(' ', '_')}.zip",
+                    mime="application/zip"
+                )
