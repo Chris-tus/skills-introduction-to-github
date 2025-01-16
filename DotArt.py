@@ -415,40 +415,41 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
     buffer.seek(0)
     return buffer
 
-# Title of the page
-st.title("Diamond Dot Template Creator")
+# Stripe payment base URL
+PAYMENT_BASE_URL = "https://buy.stripe.com/test_fZe9BM6nj1Upb4I5kk"  # Replace with your Stripe payment link
 
-# Generate a unique session ID
+# Generate a unique session ID if not already created
 if "download_session_id" not in st.session_state:
     st.session_state.download_session_id = str(uuid.uuid4())  # Generate a random UUID
 
-# File upload
-uploaded_file = st.file_uploader("Upload your image file", type=["png", "jpg", "jpeg"])
+# Check if a ZIP file has already been created and stored
+zip_key = f"zip_{st.session_state.download_session_id}"
 
-if uploaded_file:
-    # Generate the ZIP file and store it in session state
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w") as zf:
-        zf.writestr("uploaded_image.png", uploaded_file.read())
-        zf.writestr("readme.txt", "Thank you for using Diamond Dot Creator!")
-    zip_buffer.seek(0)
+if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
+    # Generate the ZIP file and store it in session state if not already done
+    if zip_key not in st.session_state:
+        with io.BytesIO() as zip_buffer:
+            with zipfile.ZipFile(zip_buffer, "w") as zf:
+                # Example files added to ZIP
+                zf.writestr("color_dot_map.png", "Dummy content for color dot map.")
+                zf.writestr("number_dot_map.png", "Dummy content for number dot map.")
+                zf.writestr("project_specification.pdf", "Dummy content for specification PDF.")
+            zip_buffer.seek(0)
+            st.session_state[zip_key] = zip_buffer.getvalue()  # Store the ZIP file as bytes in session state
 
-    # Store the ZIP file in session state
-    st.session_state[f"zip_{st.session_state.download_session_id}"] = zip_buffer
-
-    # Stripe Payment Link
-    PAYMENT_BASE_URL = "https://buy.stripe.com/test_fZe9BM6nj1Upb4I5kk"  # Replace with your actual Stripe Payment Link
+    # Payment URL with session validation
     payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
 
-    # Display payment button
+    # Display the payment button
     st.markdown(
         f"""
         <a href="{payment_url}" target="_blank">
             <button style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                Download for $2
+                Proceed to Payment ($2)
             </button>
         </a>
         """,
         unsafe_allow_html=True,
     )
-
+else:
+    st.error("Please upload a file and configure your template first.")
