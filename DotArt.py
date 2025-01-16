@@ -414,23 +414,26 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
     buffer.seek(0)
     return buffer
 
-# Example payment URL (Replace with your actual payment gateway checkout link)
-PAYMENT_BASE_URL = "https://buy.stripe.com/bIY3cs4Kj52g8dqcMM"
+# Example payment URL (Replace with your actual Stripe Checkout link)
+PAYMENT_BASE_URL = "https://buy.stripe.com/example-checkout-link"
+
+# Check if a unique session ID is set
+if "download_session_id" not in st.session_state:
+    st.session_state.download_session_id = str(uuid.uuid4())  # Unique session ID
+
+# Construct the payment URL
+payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
 
 # Check for payment confirmation via query parameters
 query_params = st.experimental_get_query_params()
 payment_confirmed = query_params.get("paid", ["false"])[0] == "true"
+session_id = query_params.get("session_id", [""])[0]
 
-# Create a unique identifier for each file generation session
-if "download_session_id" not in st.session_state:
-    st.session_state.download_session_id = str(st.session_state.run_id)  # Unique session ID per run
-
-# Payment URL with session validation
-payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
-
+# Logic for file upload and download
 if uploaded_file:
-    if not payment_confirmed:
-        # Force payment before download
+    st.subheader("Your Project is Ready")
+    if not payment_confirmed or session_id != st.session_state.download_session_id:
+        # Redirect to payment if not already done
         st.markdown(
             f"""
             <a href="{payment_url}" target="_blank">
@@ -443,34 +446,29 @@ if uploaded_file:
         )
         st.warning("Complete payment to enable the download. This payment applies to this download session only.")
     else:
-        # Check that the session ID matches
-        session_id = query_params.get("session_id", [""])[0]
-        if session_id != st.session_state.download_session_id:
-            st.error("Payment validation failed. Please complete payment again.")
-        else:
-            # Payment validated for this session; allow download
-            with io.BytesIO() as zip_buffer:
-                with zipfile.ZipFile(zip_buffer, "w") as zf:
-                    # Save Color Dot Map
-                    color_dot_buffer = io.BytesIO()
-                    color_dot_img.save(color_dot_buffer, format="PNG", dpi=(cm_to_pixels, cm_to_pixels))
-                    zf.writestr(f"{project_title.replace(' ', '_')}_color_dot_map.png", color_dot_buffer.getvalue())
+        # Payment validated, allow download
+        with io.BytesIO() as zip_buffer:
+            with zipfile.ZipFile(zip_buffer, "w") as zf:
+                # Save Color Dot Map
+                color_dot_buffer = io.BytesIO()
+                color_dot_img.save(color_dot_buffer, format="PNG", dpi=(cm_to_pixels, cm_to_pixels))
+                zf.writestr("color_dot_map.png", color_dot_buffer.getvalue())
 
-                    # Save Number Dot Map
-                    number_dot_buffer = io.BytesIO()
-                    numbers_img.save(number_dot_buffer, format="PNG", dpi=(cm_to_pixels, cm_to_pixels))
-                    zf.writestr(f"{project_title.replace(' ', '_')}_number_dot_map.png", number_dot_buffer.getvalue())
+                # Save Number Dot Map
+                number_dot_buffer = io.BytesIO()
+                numbers_img.save(number_dot_buffer, format="PNG", dpi=(cm_to_pixels, cm_to_pixels))
+                zf.writestr("number_dot_map.png", number_dot_buffer.getvalue())
 
-                    # Save Project Specification PDF
-                    pdf_buffer = create_project_specification_pdf(uploaded_file, color_dot_img, numbers_img, rhinestones, ignore_colors, labels)
-                    zf.writestr(f"{project_title.replace(' ', '_')}_specification.pdf", pdf_buffer.getvalue())
+                # Save Project Specification PDF
+                pdf_buffer = create_project_specification_pdf(uploaded_file, color_dot_img, numbers_img, rhinestones, ignore_colors, labels)
+                zf.writestr("project_specification.pdf", pdf_buffer.getvalue())
 
-                zip_buffer.seek(0)
+            zip_buffer.seek(0)
 
-                # Add download button
-                st.download_button(
-                    label=f"Download {project_title} ZIP",
-                    data=zip_buffer,
-                    file_name=f"{project_title.replace(' ', '_')}.zip",
-                    mime="application/zip"
-                )
+            # Add download button
+            st.download_button(
+                label="Download Project ZIP",
+                data=zip_buffer,
+                file_name=f"{project_title.replace(' ', '_')}.zip",
+                mime="application/zip"
+            )
