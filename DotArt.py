@@ -413,7 +413,7 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
     pdf.save()
     buffer.seek(0)
     return buffer
-    
+
 # Example payment URL (Replace with your actual payment gateway checkout link)
 PAYMENT_BASE_URL = "https://buy.stripe.com/bIY3cs4Kj52g8dqcMM"
 
@@ -454,22 +454,22 @@ if uploaded_file:
                     # Save Color Dot Map
                     color_dot_buffer = io.BytesIO()
                     color_dot_img.save(color_dot_buffer, format="PNG", dpi=(cm_to_pixels, cm_to_pixels))
-                    zf.writestr("color_dot_map.png", color_dot_buffer.getvalue())
+                    zf.writestr(f"{project_title.replace(' ', '_')}_color_dot_map.png", color_dot_buffer.getvalue())
 
                     # Save Number Dot Map
                     number_dot_buffer = io.BytesIO()
                     numbers_img.save(number_dot_buffer, format="PNG", dpi=(cm_to_pixels, cm_to_pixels))
-                    zf.writestr("number_dot_map.png", number_dot_buffer.getvalue())
+                    zf.writestr(f"{project_title.replace(' ', '_')}_number_dot_map.png", number_dot_buffer.getvalue())
 
                     # Save Project Specification PDF
                     pdf_buffer = create_project_specification_pdf(uploaded_file, color_dot_img, numbers_img, rhinestones, ignore_colors, labels)
-                    zf.writestr("project_specification.pdf", pdf_buffer.getvalue())
+                    zf.writestr(f"{project_title.replace(' ', '_')}_specification.pdf", pdf_buffer.getvalue())
 
                 zip_buffer.seek(0)
 
                 # Add download button
                 st.download_button(
-                    label="Download Project ZIP",
+                    label=f"Download {project_title} ZIP",
                     data=zip_buffer,
                     file_name=f"{project_title.replace(' ', '_')}.zip",
                     mime="application/zip"
