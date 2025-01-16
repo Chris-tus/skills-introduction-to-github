@@ -415,61 +415,40 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
     buffer.seek(0)
     return buffer
 
-# Stripe payment base URL
-PAYMENT_BASE_URL = "https://buy.stripe.com/test_fZe9BM6nj1Upb4I5kk"  # Replace with your Stripe payment link
+# Title of the page
+st.title("Diamond Dot Template Creator")
 
-# Check query parameters for payment confirmation
-query_params = st.query_params  # Replacing experimental_get_query_params
-payment_confirmed = query_params.get("paid", ["false"])[0] == "true"
-
-# Generate a unique session ID if not already created
+# Generate a unique session ID
 if "download_session_id" not in st.session_state:
     st.session_state.download_session_id = str(uuid.uuid4())  # Generate a random UUID
 
-# Payment URL with session validation
-payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
+# File upload
+uploaded_file = st.file_uploader("Upload your image file", type=["png", "jpg", "jpeg"])
 
-# File generation example
-uploaded_file = True  # Assume an uploaded file for demonstration
 if uploaded_file:
-    if not payment_confirmed:
-        # Display a button for payment
-        st.markdown(
-            f"""
-            <a href="{payment_url}" target="_blank">
-                <button style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                    Download for $2
-                </button>
-            </a>
-            """,
-            unsafe_allow_html=True,
-        )
-        
-    else:
-        # Check if session ID matches
-        session_id = query_params.get("session_id", [""])[0]
-        if session_id != st.session_state.download_session_id:
-            st.error("Payment validation failed. Please complete payment again.")
-        else:
-            # Generate and prepare the ZIP file for download
-            with io.BytesIO() as zip_buffer:
-                with zipfile.ZipFile(zip_buffer, "w") as zf:
-                    # Save Color Dot Map
-                    zf.writestr("color_dot_map.png", "Dummy content for color dot map.")
+    # Generate the ZIP file and store it in session state
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w") as zf:
+        zf.writestr("uploaded_image.png", uploaded_file.read())
+        zf.writestr("readme.txt", "Thank you for using Diamond Dot Creator!")
+    zip_buffer.seek(0)
 
-                    # Save Number Dot Map
-                    zf.writestr("number_dot_map.png", "Dummy content for number dot map.")
+    # Store the ZIP file in session state
+    st.session_state[f"zip_{st.session_state.download_session_id}"] = zip_buffer
 
-                    # Save Project Specification PDF
-                    zf.writestr("project_specification.pdf", "Dummy content for specification PDF.")
+    # Stripe Payment Link
+    PAYMENT_BASE_URL = "https://buy.stripe.com/test_fZe9BM6nj1Upb4I5kk"  # Replace with your actual Stripe Payment Link
+    payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
 
-                zip_buffer.seek(0)
-
-                # Add the download button
-                st.download_button(
-                    label="Download",
-                    data=zip_buffer,
-                    file_name="your_download.zip",
-                    mime="application/zip",
-                )
+    # Display payment button
+    st.markdown(
+        f"""
+        <a href="{payment_url}" target="_blank">
+            <button style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                Download for $2
+            </button>
+        </a>
+        """,
+        unsafe_allow_html=True,
+    )
 
