@@ -4,6 +4,7 @@ from sklearn.cluster import KMeans
 import numpy as np
 import io
 import zipfile
+import uuid
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
@@ -414,61 +415,61 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
     buffer.seek(0)
     return buffer
 
-# Example payment URL (Replace with your actual Stripe Checkout link)
-PAYMENT_BASE_URL = "https://buy.stripe.com/example-checkout-link"
+# Stripe payment base URL
+PAYMENT_BASE_URL = "https://buy.stripe.com/test_fZe9BM6nj1Upb4I5kk"  # Replace with your Stripe payment link
 
-# Check if a unique session ID is set
+# Check query parameters for payment confirmation
+query_params = st.query_params  # Replacing experimental_get_query_params
+payment_confirmed = query_params.get("paid", ["false"])[0] == "true"
+
+# Generate a unique session ID if not already created
 if "download_session_id" not in st.session_state:
-    st.session_state.download_session_id = str(uuid.uuid4())  # Unique session ID
+    st.session_state.download_session_id = str(uuid.uuid4())  # Generate a random UUID
 
-# Construct the payment URL
+# Payment URL with session validation
 payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
 
-# Check for payment confirmation via query parameters
-query_params = st.experimental_get_query_params()
-payment_confirmed = query_params.get("paid", ["false"])[0] == "true"
-session_id = query_params.get("session_id", [""])[0]
-
-# Logic for file upload and download
+# File generation example
+uploaded_file = True  # Assume an uploaded file for demonstration
 if uploaded_file:
-    st.subheader("Your Project is Ready")
-    if not payment_confirmed or session_id != st.session_state.download_session_id:
-        # Redirect to payment if not already done
+    if not payment_confirmed:
+        # Display a button for payment
         st.markdown(
             f"""
             <a href="{payment_url}" target="_blank">
                 <button style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                    Proceed to Payment
+                    Download for $2
                 </button>
             </a>
             """,
             unsafe_allow_html=True,
         )
-        st.warning("Complete payment to enable the download. This payment applies to this download session only.")
+        
     else:
-        # Payment validated, allow download
-        with io.BytesIO() as zip_buffer:
-            with zipfile.ZipFile(zip_buffer, "w") as zf:
-                # Save Color Dot Map
-                color_dot_buffer = io.BytesIO()
-                color_dot_img.save(color_dot_buffer, format="PNG", dpi=(cm_to_pixels, cm_to_pixels))
-                zf.writestr("color_dot_map.png", color_dot_buffer.getvalue())
+        # Check if session ID matches
+        session_id = query_params.get("session_id", [""])[0]
+        if session_id != st.session_state.download_session_id:
+            st.error("Payment validation failed. Please complete payment again.")
+        else:
+            # Generate and prepare the ZIP file for download
+            with io.BytesIO() as zip_buffer:
+                with zipfile.ZipFile(zip_buffer, "w") as zf:
+                    # Save Color Dot Map
+                    zf.writestr("color_dot_map.png", "Dummy content for color dot map.")
 
-                # Save Number Dot Map
-                number_dot_buffer = io.BytesIO()
-                numbers_img.save(number_dot_buffer, format="PNG", dpi=(cm_to_pixels, cm_to_pixels))
-                zf.writestr("number_dot_map.png", number_dot_buffer.getvalue())
+                    # Save Number Dot Map
+                    zf.writestr("number_dot_map.png", "Dummy content for number dot map.")
 
-                # Save Project Specification PDF
-                pdf_buffer = create_project_specification_pdf(uploaded_file, color_dot_img, numbers_img, rhinestones, ignore_colors, labels)
-                zf.writestr("project_specification.pdf", pdf_buffer.getvalue())
+                    # Save Project Specification PDF
+                    zf.writestr("project_specification.pdf", "Dummy content for specification PDF.")
 
-            zip_buffer.seek(0)
+                zip_buffer.seek(0)
 
-            # Add download button
-            st.download_button(
-                label="Download Project ZIP",
-                data=zip_buffer,
-                file_name=f"{project_title.replace(' ', '_')}.zip",
-                mime="application/zip"
-            )
+                # Add the download button
+                st.download_button(
+                    label="Download",
+                    data=zip_buffer,
+                    file_name="your_download.zip",
+                    mime="application/zip",
+                )
+
