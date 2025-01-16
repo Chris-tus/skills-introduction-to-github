@@ -5,6 +5,10 @@ import numpy as np
 import io
 import zipfile
 import uuid
+import firebase_admin
+import json
+from google.cloud import storage
+from firebase_admin import credentials, storage
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
@@ -415,27 +419,67 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
     buffer.seek(0)
     return buffer
 
+# Initialize Firebase Admin SDK using credentials from Streamlit secrets
+if not firebase_admin._apps:
+    firebase_creds = json.loads(st.secrets["firebase_credentials"])  # Load Firebase credentials from Streamlit secrets
+    cred = credentials.Certificate(firebase_creds)
+    firebase_admin.initialize_app(cred, {
+        'storageBucket': st.secrets["firebase_storage_bucket"]  # Get the bucket name from Streamlit secrets
+    })
+
 # Stripe payment base URL
-PAYMENT_BASE_URL = "https://buy.stripe.com/test_fZe9BM6nj1Upb4I5kk"  # Replace with your Stripe payment link
+PAYMENT_BASE_URL = st.secrets["stripe_payment_link"]  # Fetch from secrets
 
 # Generate a unique session ID if not already created
 if "download_session_id" not in st.session_state:
     st.session_state.download_session_id = str(uuid.uuid4())  # Generate a random UUID
 
-# Check if a ZIP file has already been created and stored
-zip_key = f"zip_{st.session_state.download_session_id}"
+# Firebase Storage Bucket
+bucket = storage.bucket()
 
+# Check if the uploaded file exists
 if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
-    # Generate the ZIP file and store it in session state if not already done
+    uploaded_file = st.session_state.uploaded_file
+
+    # Upload the user's original file to Firebase Storage if not already uploaded
+    original_file_key = f"uploads/{st.session_state.download_session_id}/{uploaded_file.name}"
+    if original_file_key not in st.session_state:
+        uploaded_file.seek(0)  # Reset file stream to the beginning
+        blob = bucket.blob(original_file_key)
+        blob.upload_from_file(uploaded_file, content_type=uploaded_file.type)
+        st.session_state["uploaded_file_key"] = original_file_key
+
+    # Save project settings as a JSON file in Firebase for future reference
+    project_settings = {
+        "project_title": st.session_state.get("project_title", "My Diamond Dot Template"),
+        "num_colors": st.session_state.get("num_colors", 6),
+        "rhinestone_size": st.session_state.get("rhinestone_size", 3.0),
+        "dot_shape": st.session_state.get("dot_shape", "Circle"),
+        "dot_alignment": st.session_state.get("dot_alignment", "Straight"),
+        "image_width": st.session_state.get("image_width", 30.0),
+        "image_height": st.session_state.get("image_height", 30.0),
+    }
+    settings_file_key = f"settings/{st.session_state.download_session_id}/project_settings.json"
+    if settings_file_key not in st.session_state:
+        blob = bucket.blob(settings_file_key)
+        blob.upload_from_string(json.dumps(project_settings), content_type="application/json")
+        st.session_state["settings_file_key"] = settings_file_key
+
+    # Generate the ZIP file with the final files
+    zip_key = f"zips/{st.session_state.download_session_id}.zip"
     if zip_key not in st.session_state:
         with io.BytesIO() as zip_buffer:
             with zipfile.ZipFile(zip_buffer, "w") as zf:
-                # Example files added to ZIP
                 zf.writestr("color_dot_map.png", "Dummy content for color dot map.")
                 zf.writestr("number_dot_map.png", "Dummy content for number dot map.")
                 zf.writestr("project_specification.pdf", "Dummy content for specification PDF.")
             zip_buffer.seek(0)
-            st.session_state[zip_key] = zip_buffer.getvalue()  # Store the ZIP file as bytes in session state
+            zip_data = zip_buffer.getvalue()
+
+        # Upload ZIP file to Firebase
+        blob = bucket.blob(zip_key)
+        blob.upload_from_string(zip_data, content_type="application/zip")
+        st.session_state["zip_file_key"] = zip_key
 
     # Payment URL with session validation
     payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
@@ -451,5 +495,42 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
         """,
         unsafe_allow_html=True,
     )
+
+# Check if the user is redirected from Stripe with a valid session_id
+query_params = st.query_params  # Future-proof replacement for st.experimental_get_query_params
+redirect_session_id = query_params.get("session_id", [None])[0]
+
+# Debugging output for session IDs
+st.write("Session ID in state:", st.session_state.get("download_session_id"))
+st.write("Redirect Session ID:", redirect_session_id)
+
+if redirect_session_id:
+    # Retrieve the session ID from Firebase as a fallback
+    firebase_session_key = f"sessions/{redirect_session_id}/stripe_session.json"
+    blob = bucket.blob(firebase_session_key)
+    if blob.exists():
+        session_data = json.loads(blob.download_as_string())
+        stored_session_id = session_data.get("session_id")
+        if stored_session_id == redirect_session_id:
+            # Success popup with download button
+            st.success("Success! Your payment has been confirmed.", icon="✅")
+
+            # Firebase path to the zip file
+            zip_file_key = f"zips/{redirect_session_id}.zip"
+            zip_blob = bucket.blob(zip_file_key)
+            if zip_blob.exists():
+                # Display download button
+                st.download_button(
+                    label="Download Your File",
+                    data=zip_blob.download_as_bytes(),
+                    file_name="diamond_dot_template.zip",
+                    mime="application/zip",
+                )
+            else:
+                st.error("Error: ZIP file not found.")
+        else:
+            st.error("Invalid session ID. Please try again.")
+    else:
+        st.error("Session not found. Please complete the process again.")
 else:
-    st.error("Please upload a file and configure your template first.")
+    st.info("Upload file your file to begin.")
