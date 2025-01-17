@@ -424,7 +424,7 @@ if not firebase_admin._apps:
     firebase_creds = dict(st.secrets["firebase_credentials"])  # Convert AttrDict to a regular dictionary
     cred = credentials.Certificate(firebase_creds)
     firebase_admin.initialize_app(cred, {
-        'storageBucket': st.secrets["firebase_storage_bucket"]  # Get the bucket name from Streamlit secrets
+        'storageBucket': 'diamond-dotgenerator.firebasestorage.app'  # Hardcoded bucket name
     })
 
 # Stripe payment base URL
