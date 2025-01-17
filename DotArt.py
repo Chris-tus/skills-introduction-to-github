@@ -496,18 +496,19 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
         unsafe_allow_html=True,
     )
 
-# Debug query parameters
-query_params = st.query_params
+# Check if the user is redirected from Stripe with a valid session_id
+query_params = st.query_params  # Get all query parameters
 st.write("Query Params:", query_params)
 
-redirect_session_id = query_params.get("session_id", [None])[0]
-redirect_paid = query_params.get("paid", ["false"])[0].lower() == "true"
+redirect_session_id = query_params.get("session_id", None)  # Get session_id directly
+redirect_paid = query_params.get("paid", "false").lower() == "true"  # Parse paid parameter
 
 # Debugging output
 st.write("Session ID in state:", st.session_state.get("download_session_id"))
 st.write("Redirect Session ID:", redirect_session_id)
 st.write("Redirect Paid:", redirect_paid)
 
+# Check if the payment was confirmed and session_id is valid
 if redirect_paid and redirect_session_id:
     # Retrieve the session ID from Firebase as a fallback
     firebase_session_key = f"sessions/{redirect_session_id}/stripe_session.json"
@@ -540,3 +541,4 @@ elif redirect_session_id:
     st.error("Payment not confirmed. Please retry the payment process.")
 else:
     st.info("Upload file your file to begin.")
+
