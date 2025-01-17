@@ -570,7 +570,7 @@ if redirect_session_id == st.session_state.get("download_session_id") and redire
         st.error("Session not found. Please complete the process again.")
 else:
     st.info("Payment not confirmed or invalid session. Please retry the process.")
-=======
+
 # Show the download button if payment is confirmed
 if redirect_paid and redirect_session_id == st.session_state.get("download_session_id"):
     st.success("Success! Your payment has been confirmed.", icon="✅")
