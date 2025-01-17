@@ -496,27 +496,34 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
         unsafe_allow_html=True,
     )
 
+# Debug query parameters
 query_params = st.query_params
-redirect_paid = query_params.get("paid", ["false"])[0] == "true"
-redirect_session_id = query_params.get("session_id", [None])[0]
+st.write("Query Params:", query_params)
 
+redirect_session_id = query_params.get("session_id", [None])[0]
+redirect_paid = query_params.get("paid", ["false"])[0].lower() == "true"
+
+# Debugging output
 st.write("Session ID in state:", st.session_state.get("download_session_id"))
 st.write("Redirect Session ID:", redirect_session_id)
 st.write("Redirect Paid:", redirect_paid)
 
 if redirect_paid and redirect_session_id:
-    # Validate session
+    # Retrieve the session ID from Firebase as a fallback
     firebase_session_key = f"sessions/{redirect_session_id}/stripe_session.json"
     blob = bucket.blob(firebase_session_key)
     if blob.exists():
         session_data = json.loads(blob.download_as_string())
         stored_session_id = session_data.get("session_id")
         if stored_session_id == redirect_session_id:
+            # Success popup with download button
             st.success("Success! Your payment has been confirmed.", icon="✅")
-            
+
+            # Firebase path to the zip file
             zip_file_key = f"zips/{redirect_session_id}.zip"
             zip_blob = bucket.blob(zip_file_key)
             if zip_blob.exists():
+                # Display download button
                 st.download_button(
                     label="Download Your File",
                     data=zip_blob.download_as_bytes(),
@@ -529,8 +536,7 @@ if redirect_paid and redirect_session_id:
             st.error("Invalid session ID. Please try again.")
     else:
         st.error("Session not found. Please complete the process again.")
+elif redirect_session_id:
+    st.error("Payment not confirmed. Please retry the payment process.")
 else:
-    if not redirect_paid:
-        st.info("Payment not confirmed. Please retry the payment process.")
-    else:
-        st.info("Redirect session ID missing. Please contact support.")
+    st.info("Upload file your file to begin.")
