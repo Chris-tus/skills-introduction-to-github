@@ -484,14 +484,30 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
     # Payment URL with session validation
     payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
 
-    # Display the payment button
+    # Display the payment button with popup logic
     st.markdown(
         f"""
-        <a href="{payment_url}" target="_blank">
-            <button style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                Proceed to Payment ($2)
-            </button>
-        </a>
+        <script>
+            function openStripePopup() {{
+                var width = 500;
+                var height = 700;
+                var left = (screen.width - width) / 2;
+                var top = (screen.height - height) / 2;
+                var popup = window.open("{payment_url}", "stripePayment", "width=" + width + ",height=" + height + ",top=" + top + ",left=" + left);
+                popup.focus();
+
+                // Polling to check if the popup window is closed
+                var timer = setInterval(function() {{
+                    if (popup.closed) {{
+                        clearInterval(timer);
+                        window.location.reload();
+                    }}
+                }}, 500);
+            }}
+        </script>
+        <button onclick="openStripePopup()" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            Proceed to Payment ($2)
+        </button>
         """,
         unsafe_allow_html=True,
     )
@@ -508,28 +524,27 @@ st.write("Session ID in state:", st.session_state.get("download_session_id"))
 st.write("Redirect Session ID:", redirect_session_id)
 st.write("Redirect Paid:", redirect_paid)
 
-# Check if the payment was confirmed and session_id is valid
-if redirect_session_id:
-    # Retrieve the session ID from Firebase
-    firebase_session_key = f"sessions/{redirect_session_id}/stripe_session.json"
-    blob = bucket.blob(firebase_session_key)
-    if blob.exists():
-        session_data = json.loads(blob.download_as_string())
-        stored_session_id = session_data.get("session_id")
-        if stored_session_id == redirect_session_id:  # Match Stripe's session ID
-            st.success("Success! Your payment has been confirmed.", icon="✅")
+# Show the download button if payment is confirmed
+if redirect_paid and redirect_session_id == st.session_state.get("download_session_id"):
+    st.success("Success! Your payment has been confirmed.", icon="✅")
 
-            # Firebase path to the zip file
-            zip_file_key = f"zips/{redirect_session_id}.zip"  # Use redirect_session_id
-            zip_blob = bucket.blob(zip_file_key)
-            if zip_blob.exists():
-                st.download_button(
-                    label="Download Your File",
-                    data=zip_blob.download_as_bytes(),
-                    file_name="diamond_dot_template.zip",
-                    mime="application/zip",
-                )
-            else:
-                st.error("Error: ZIP file not found.")
-        else:
-            st.error("Invalid session ID. Please try again.")
+    # Firebase path to the zip file
+    zip_file_key = f"zips/{redirect_session_id}.zip"
+    zip_blob = bucket.blob(zip_file_key)
+
+    if zip_blob.exists():
+        if "file_downloaded" not in st.session_state:
+            st.session_state["file_downloaded"] = False
+
+        if not st.session_state["file_downloaded"]:
+            if st.download_button(
+                label="Download Your File",
+                data=zip_blob.download_as_bytes(),
+                file_name="diamond_dot_template.zip",
+                mime="application/zip",
+            ):
+                st.session_state["file_downloaded"] = True
+    else:
+        st.error("Error: ZIP file not found.")
+elif redirect_session_id:
+    st.error("Payment not confirmed. Please retry the payment process.")
