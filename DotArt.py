@@ -481,6 +481,12 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
         blob.upload_from_string(zip_data, content_type="application/zip")
         st.session_state["zip_file_key"] = zip_key
 
+    # Save the session ID to Firebase for validation
+    stripe_session_key = f"sessions/{st.session_state.download_session_id}/stripe_session.json"
+    blob = bucket.blob(stripe_session_key)
+    stripe_session_data = {"session_id": st.session_state.download_session_id}
+    blob.upload_from_string(json.dumps(stripe_session_data), content_type="application/json")
+
     # Payment URL with session validation
     payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
 
