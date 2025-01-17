@@ -428,7 +428,7 @@ if not firebase_admin._apps:
     })
 
 # Stripe payment base URL
-PAYMENT_BASE_URL = "https://buy.stripe.com/test_fZe9BM6nj1Upb4I5kk"
+PAYMENT_BASE_URL = "https://dot-art-generator.streamlit.app/"
 
 # Generate a unique session ID if not already created
 if "download_session_id" not in st.session_state:
@@ -481,51 +481,83 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
         blob.upload_from_string(zip_data, content_type="application/zip")
         st.session_state["zip_file_key"] = zip_key
 
+
     # Save the session ID to Firebase for validation
+
     stripe_session_key = f"sessions/{st.session_state.download_session_id}/stripe_session.json"
     blob = bucket.blob(stripe_session_key)
     stripe_session_data = {"session_id": st.session_state.download_session_id}
     blob.upload_from_string(json.dumps(stripe_session_data), content_type="application/json")
 
     # Payment URL with session validation
-    payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
+    payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id, 'paid': 'true'})}"
 
-    # Display the payment button
-    st.markdown(
-        f"""
-        <a href="{payment_url}" target="_blank">
-            <button style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                Proceed to Payment ($2)
-            </button>
-        </a>
-        """,
-        unsafe_allow_html=True,
-    )
+    # Payment URL with session validation
+payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
+
+# Display the payment button with popup logic using HTML component
+st.components.v1.html(
+    f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script>
+            function openStripePopup() {{
+                var width = 500;
+                var height = 700;
+                var left = (screen.width - width) / 2;
+                var top = (screen.height - height) / 2;
+                var popup = window.open("{payment_url}", "stripePayment", "width=" + width + ",height=" + height + ",top=" + top + ",left=" + left);
+                popup.focus();
+
+                // Polling to check if the popup window is closed
+                var timer = setInterval(function() {{
+                    if (popup.closed) {{
+                        clearInterval(timer);
+                        window.location.reload();
+                    }}
+                }}, 500);
+            }}
+        </script>
+    </head>
+    <body>
+        <button onclick="openStripePopup()" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            Proceed to Payment ($2)
+        </button>
+    </body>
+    </html>
+    """,
+    height=100,
+)
 
 # Check if the user is redirected from Stripe with a valid session_id
-query_params = st.query_params  # Future-proof replacement for st.experimental_get_query_params
-redirect_session_id = query_params.get("session_id", [None])[0]
+query_params = st.query_params  # Get all query parameters
+st.write("Query Params:", query_params)
 
-# Debugging output for session IDs
+redirect_session_id = query_params.get("session_id", None)  # Get session_id directly
+redirect_paid = query_params.get("paid", "false").lower() == "true"  # Parse paid parameter
+
+# Debugging output
 st.write("Session ID in state:", st.session_state.get("download_session_id"))
 st.write("Redirect Session ID:", redirect_session_id)
+st.write("Redirect Paid:", redirect_paid)
 
-if redirect_session_id:
-    # Retrieve the session ID from Firebase as a fallback
+
+# Check if the payment was confirmed and session_id is valid
+if redirect_session_id == st.session_state.get("download_session_id") and redirect_paid:
+    # Retrieve session data from Firebase
     firebase_session_key = f"sessions/{redirect_session_id}/stripe_session.json"
     blob = bucket.blob(firebase_session_key)
     if blob.exists():
         session_data = json.loads(blob.download_as_string())
         stored_session_id = session_data.get("session_id")
-        if stored_session_id == redirect_session_id:
-            # Success popup with download button
+        if stored_session_id == redirect_session_id:  # Match Stripe's session ID
             st.success("Success! Your payment has been confirmed.", icon="✅")
 
             # Firebase path to the zip file
-            zip_file_key = f"zips/{redirect_session_id}.zip"
+            zip_file_key = f"zips/{redirect_session_id}.zip"  # Use redirect_session_id
             zip_blob = bucket.blob(zip_file_key)
             if zip_blob.exists():
-                # Display download button
                 st.download_button(
                     label="Download Your File",
                     data=zip_blob.download_as_bytes(),
@@ -539,4 +571,29 @@ if redirect_session_id:
     else:
         st.error("Session not found. Please complete the process again.")
 else:
-    st.info("Upload file your file to begin.")
+    st.info("Payment not confirmed or invalid session. Please retry the process.")
+
+# Show the download button if payment is confirmed
+if redirect_paid and redirect_session_id == st.session_state.get("download_session_id"):
+    st.success("Success! Your payment has been confirmed.", icon="✅")
+
+    # Firebase path to the zip file
+    zip_file_key = f"zips/{redirect_session_id}.zip"
+    zip_blob = bucket.blob(zip_file_key)
+
+    if zip_blob.exists():
+        if "file_downloaded" not in st.session_state:
+            st.session_state["file_downloaded"] = False
+
+        if not st.session_state["file_downloaded"]:
+            if st.download_button(
+                label="Download Your File",
+                data=zip_blob.download_as_bytes(),
+                file_name="diamond_dot_template.zip",
+                mime="application/zip",
+            ):
+                st.session_state["file_downloaded"] = True
+    else:
+        st.error("Error: ZIP file not found.")
+elif redirect_session_id:
+    st.error("Payment not confirmed. Please retry the payment process.")
