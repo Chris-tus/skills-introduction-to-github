@@ -7,6 +7,7 @@ import zipfile
 import uuid
 import firebase_admin
 import json
+import stripe
 from google.cloud import storage
 from firebase_admin import credentials, storage
 from reportlab.pdfgen import canvas
@@ -418,7 +419,7 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
     pdf.save()
     buffer.seek(0)
     return buffer
-
+    
 # Initialize Firebase Admin SDK using credentials from Streamlit secrets
 if not firebase_admin._apps:
     firebase_creds = dict(st.secrets["firebase_credentials"])  # Convert AttrDict to a regular dictionary
@@ -427,8 +428,8 @@ if not firebase_admin._apps:
         'storageBucket': 'diamond-dotgenerator.firebasestorage.app'
     })
 
-# Stripe payment base URL
-PAYMENT_BASE_URL = "https://buy.stripe.com/test_fZe9BM6nj1Upb4I5kk"
+# Initialize Stripe with your secret key
+stripe.api_key = st.secrets["stripe_secret_key"]
 
 # Generate a unique session ID if not already created
 if "download_session_id" not in st.session_state:
@@ -487,13 +488,30 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
     stripe_session_data = {"session_id": st.session_state.download_session_id}
     blob.upload_from_string(json.dumps(stripe_session_data), content_type="application/json")
 
-    # Payment URL with session validation
-    payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
+    # Create a Stripe Checkout session
+    checkout_session = stripe.checkout.Session.create(
+        payment_method_types=['card'],  # Accept card payments
+        line_items=[
+            {
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {
+                        'name': 'Diamond Dot Template',
+                    },
+                    'unit_amount': 200,  # Price in cents (e.g., $2.00)
+                },
+                'quantity': 1,
+            },
+        ],
+        mode='payment',
+        success_url=f'https://downloads.streamlit.app/?session_id={st.session_state.download_session_id}&paid=true',
+        cancel_url='https://your-app-url.com/cancel',
+    )
 
-    # Display the payment button
+    # Display the payment button with a link to Stripe Checkout
     st.markdown(
         f"""
-        <a href="{payment_url}" target="_blank">
+        <a href="{checkout_session.url}" target="_blank">
             <button style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
                 Proceed to Payment ($2)
             </button>
