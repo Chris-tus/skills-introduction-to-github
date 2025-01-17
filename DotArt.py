@@ -428,7 +428,7 @@ if not firebase_admin._apps:
     })
 
 # Stripe payment base URL
-PAYMENT_BASE_URL = st.secrets["stripe_payment_link"]  # Fetch from secrets
+PAYMENT_BASE_URL = "https://buy.stripe.com/test_fZe9BM6nj1Upb4I5kk"
 
 # Generate a unique session ID if not already created
 if "download_session_id" not in st.session_state:
