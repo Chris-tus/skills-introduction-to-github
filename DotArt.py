@@ -481,7 +481,9 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
         blob.upload_from_string(zip_data, content_type="application/zip")
         st.session_state["zip_file_key"] = zip_key
 
-    # Save the session ID to Firebase for validation during redirect
+
+    # Save the session ID to Firebase for validation
+
     stripe_session_key = f"sessions/{st.session_state.download_session_id}/stripe_session.json"
     blob = bucket.blob(stripe_session_key)
     stripe_session_data = {"session_id": st.session_state.download_session_id}
