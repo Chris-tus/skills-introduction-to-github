@@ -484,9 +484,15 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
     # Payment URL with session validation
     payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
 
-    # Display the payment button with popup logic
-    st.markdown(
-        f"""
+    # Payment URL with session validation
+payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
+
+# Display the payment button with popup logic using HTML component
+st.components.v1.html(
+    f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
         <script>
             function openStripePopup() {{
                 var width = 500;
@@ -505,12 +511,16 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
                 }}, 500);
             }}
         </script>
+    </head>
+    <body>
         <button onclick="openStripePopup()" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
             Proceed to Payment ($2)
         </button>
-        """,
-        unsafe_allow_html=True,
-    )
+    </body>
+    </html>
+    """,
+    height=100,
+)
 
 # Check if the user is redirected from Stripe with a valid session_id
 query_params = st.query_params  # Get all query parameters
