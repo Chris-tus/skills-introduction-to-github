@@ -494,7 +494,7 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
         line_items=[
             {
                 'price_data': {
-                    'currency': 'usd',
+                    'currency': 'aud',
                     'product_data': {
                         'name': 'Diamond Dot Template',
                     },
@@ -505,7 +505,7 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
         ],
         mode='payment',
         success_url=f'https://downloads.streamlit.app/?session_id={st.session_state.download_session_id}&paid=true',
-        cancel_url='https://your-app-url.com/cancel',
+        cancel_url='https://dot-art-generator.streamlit.app/',
     )
 
     # Display the payment button with a link to Stripe Checkout
