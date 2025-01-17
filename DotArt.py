@@ -428,7 +428,7 @@ if not firebase_admin._apps:
     })
 
 # Stripe payment base URL
-PAYMENT_BASE_URL = "https://buy.stripe.com/test_fZe9BM6nj1Upb4I5kk"
+PAYMENT_BASE_URL = "https://dot-art-generator.streamlit.app/"
 
 # Generate a unique session ID if not already created
 if "download_session_id" not in st.session_state:
@@ -481,8 +481,14 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
         blob.upload_from_string(zip_data, content_type="application/zip")
         st.session_state["zip_file_key"] = zip_key
 
+    # Save the session ID to Firebase for validation during redirect
+    stripe_session_key = f"sessions/{st.session_state.download_session_id}/stripe_session.json"
+    blob = bucket.blob(stripe_session_key)
+    stripe_session_data = {"session_id": st.session_state.download_session_id}
+    blob.upload_from_string(json.dumps(stripe_session_data), content_type="application/json")
+
     # Payment URL with session validation
-    payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
+    payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id, 'paid': 'true'})}"
 
     # Display the payment button
     st.markdown(
@@ -509,8 +515,8 @@ st.write("Redirect Session ID:", redirect_session_id)
 st.write("Redirect Paid:", redirect_paid)
 
 # Check if the payment was confirmed and session_id is valid
-if redirect_session_id:
-    # Retrieve the session ID from Firebase
+if redirect_session_id == st.session_state.get("download_session_id") and redirect_paid:
+    # Retrieve session data from Firebase
     firebase_session_key = f"sessions/{redirect_session_id}/stripe_session.json"
     blob = bucket.blob(firebase_session_key)
     if blob.exists():
@@ -533,3 +539,7 @@ if redirect_session_id:
                 st.error("Error: ZIP file not found.")
         else:
             st.error("Invalid session ID. Please try again.")
+    else:
+        st.error("Session not found. Please complete the process again.")
+else:
+    st.info("Payment not confirmed or invalid session. Please retry the process.")
