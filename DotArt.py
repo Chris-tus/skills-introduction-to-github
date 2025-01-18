@@ -419,22 +419,12 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
     pdf.save()
     buffer.seek(0)
     return buffer
-    
-import stripe
-import streamlit as st
-from google.cloud import storage
-from firebase_admin import credentials, initialize_app
-import uuid
-import json
-import io
-import zipfile
-from urllib.parse import urlencode
 
 # Initialize Firebase Admin SDK using credentials from Streamlit secrets
 if not initialize_app._apps:
     firebase_creds = dict(st.secrets["firebase_credentials"])  # From Streamlit secrets
     cred = credentials.Certificate(firebase_creds)
-    initialize_app(cred, {"storageBucket": st.secrets["firebase_bucket_url"]})
+    initialize_app(cred, {"storageBucket": "your-firebase-bucket-url"})  # Hardcoded bucket URL
 
 # Stripe API key from Streamlit secrets
 stripe.api_key = st.secrets["stripe_secret_key"]
@@ -447,7 +437,7 @@ if "download_session_id" not in st.session_state:
     st.session_state.download_session_id = str(uuid.uuid4())  # Generate a random UUID
 
 # Firebase Storage Bucket
-bucket = storage.bucket()
+bucket = storage.Client().bucket("your-firebase-bucket-url")  # Hardcoded bucket URL
 
 # Check if the uploaded file exists
 if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
