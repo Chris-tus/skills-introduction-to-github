@@ -421,10 +421,12 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
     return buffer
 
 # Initialize Firebase Admin SDK using credentials from Streamlit secrets
-if not initialize_app._apps:
-    firebase_creds = dict(st.secrets["firebase_credentials"])  # From Streamlit secrets
+if not firebase_admin._apps:
+    firebase_creds = dict(st.secrets["firebase_credentials"])  # Convert AttrDict to a regular dictionary
     cred = credentials.Certificate(firebase_creds)
-    initialize_app(cred, {"storageBucket": "diamond-dotgenerator.firebasestorage.app"})  # Hardcoded bucket URL
+    firebase_admin.initialize_app(cred, {
+        'storageBucket': 'diamond-dotgenerator.firebasestorage.app'
+    })
 
 # Stripe API key from Streamlit secrets
 stripe.api_key = st.secrets["stripe_secret_key"]
