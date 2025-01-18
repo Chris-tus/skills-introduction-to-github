@@ -424,7 +424,7 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
 if not initialize_app._apps:
     firebase_creds = dict(st.secrets["firebase_credentials"])  # From Streamlit secrets
     cred = credentials.Certificate(firebase_creds)
-    initialize_app(cred, {"storageBucket": "your-firebase-bucket-url"})  # Hardcoded bucket URL
+    initialize_app(cred, {"storageBucket": "diamond-dotgenerator.firebasestorage.app"})  # Hardcoded bucket URL
 
 # Stripe API key from Streamlit secrets
 stripe.api_key = st.secrets["stripe_secret_key"]
