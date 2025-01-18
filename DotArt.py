@@ -420,16 +420,27 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
     buffer.seek(0)
     return buffer
     
+import stripe
+import streamlit as st
+from google.cloud import storage
+from firebase_admin import credentials, initialize_app
+import uuid
+import json
+import io
+import zipfile
+from urllib.parse import urlencode
+
 # Initialize Firebase Admin SDK using credentials from Streamlit secrets
-if not firebase_admin._apps:
-    firebase_creds = dict(st.secrets["firebase_credentials"])  # Convert AttrDict to a regular dictionary
+if not initialize_app._apps:
+    firebase_creds = dict(st.secrets["firebase_credentials"])  # From Streamlit secrets
     cred = credentials.Certificate(firebase_creds)
-    firebase_admin.initialize_app(cred, {
-        'storageBucket': 'diamond-dotgenerator.firebasestorage.app'
-    })
+    initialize_app(cred, {"storageBucket": st.secrets["firebase_bucket_url"]})
+
+# Stripe API key from Streamlit secrets
+stripe.api_key = st.secrets["stripe_secret_key"]
 
 # Stripe payment base URL
-PAYMENT_BASE_URL = "https://buy.stripe.com/test_fZe9BM6nj1Upb4I5kk"
+PAYMENT_BASE_URL = st.secrets["stripe_payment_base_url"]
 
 # Generate a unique session ID if not already created
 if "download_session_id" not in st.session_state:
@@ -485,11 +496,30 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
     # Save the session ID to Firebase for validation
     stripe_session_key = f"sessions/{st.session_state.download_session_id}/stripe_session.json"
     blob = bucket.blob(stripe_session_key)
-    stripe_session_data = {"session_id": st.session_state.download_session_id}
+    stripe_session_data = {"client_reference_id": st.session_state.download_session_id}
     blob.upload_from_string(json.dumps(stripe_session_data), content_type="application/json")
 
-    # Update Payment URL with client_reference_id
-    payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'client_reference_id': st.session_state.download_session_id})}"
+    # Create Stripe Checkout Session with the client reference ID as metadata
+    checkout_session = stripe.checkout.Session.create(
+        payment_method_types=["card"],
+        line_items=[
+            {
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {"name": "Diamond Dot Template"},
+                    "unit_amount": 200,  # $2.00
+                },
+                "quantity": 1,
+            }
+        ],
+        mode="payment",
+        success_url=f"https://downloads.streamlit.app/?session_id={{CHECKOUT_SESSION_ID}}&paid=true",
+        cancel_url="https://your-cancel-url.com",
+        metadata={"client_reference_id": st.session_state.download_session_id},
+    )
+
+    # Generate payment link
+    payment_url = checkout_session.url
 
     # Display the payment button
     st.markdown(
@@ -502,4 +532,3 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
         """,
         unsafe_allow_html=True,
     )
-
