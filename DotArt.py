@@ -488,18 +488,17 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
     stripe_session_data = {"session_id": st.session_state.download_session_id}
     blob.upload_from_string(json.dumps(stripe_session_data), content_type="application/json")
 
-    # Payment URL with session validation
-    payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'session_id': st.session_state.download_session_id})}"
+    # Update Payment URL with client_reference_id
+payment_url = f"{PAYMENT_BASE_URL}?{urlencode({'client_reference_id': st.session_state.download_session_id})}"
 
-    # Display the payment button
-    st.markdown(
-        f"""
-        <a href="{payment_url}" target="_blank">
-            <button style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
-                Proceed to Payment ($2)
-            </button>
-        </a>
-        """,
-        unsafe_allow_html=True,
-    )
-
+# Display the payment button
+st.markdown(
+    f"""
+    <a href="{payment_url}" target="_blank">
+        <button style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            Proceed to Payment ($2)
+        </button>
+    </a>
+    """,
+    unsafe_allow_html=True,
+)
