@@ -5,3 +5,4 @@ numpy
 firebase-admin
 google-cloud-storage
 reportlab
+stripe

@@ -7,6 +7,7 @@ import zipfile
 import uuid
 import firebase_admin
 import json
+import stripe
 from google.cloud import storage
 from firebase_admin import credentials, storage
 from reportlab.pdfgen import canvas
@@ -418,7 +419,7 @@ def create_project_specification_pdf(uploaded_image_file, color_dot_img, numbers
     pdf.save()
     buffer.seek(0)
     return buffer
-
+    
 # Initialize Firebase Admin SDK using credentials from Streamlit secrets
 if not firebase_admin._apps:
     firebase_creds = dict(st.secrets["firebase_credentials"])  # Convert AttrDict to a regular dictionary
