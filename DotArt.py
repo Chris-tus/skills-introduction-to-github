@@ -429,17 +429,17 @@ if not firebase_admin._apps:
     })
 
 # Stripe API key from Streamlit secrets
-stripe.api_key = st.secrets["stripe_secret_key"]
+stripe.api_key = st.secrets["stripe_credentials"]["stripe_secret_key"]
 
-# Stripe payment base URL
-PAYMENT_BASE_URL = st.secrets["stripe_payment_base_url"]
+# Stripe payment base URL from Streamlit secrets
+PAYMENT_BASE_URL = st.secrets["stripe_credentials"]["stripe_payment_base_url"]
 
 # Generate a unique session ID if not already created
 if "download_session_id" not in st.session_state:
     st.session_state.download_session_id = str(uuid.uuid4())  # Generate a random UUID
 
-# Firebase Storage Bucket
-bucket = storage.Client().bucket("your-firebase-bucket-url")  # Hardcoded bucket URL
+# Reference the default storage bucket
+bucket = storage.bucket()  # No need to hardcode or specify the bucket URL again
 
 # Check if the uploaded file exists
 if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
@@ -497,7 +497,7 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
         line_items=[
             {
                 "price_data": {
-                    "currency": "usd",
+                    "currency": "aud",
                     "product_data": {"name": "Diamond Dot Template"},
                     "unit_amount": 200,  # $2.00
                 },
