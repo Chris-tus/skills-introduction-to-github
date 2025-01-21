@@ -465,6 +465,7 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
     blob.upload_from_file(uploaded_file, content_type=uploaded_file.type)
 
     # Save project settings as a JSON file in Firebase using Stripe session ID
+
     project_settings = {
         "project_title": st.session_state.get("project_title", "My Diamond Dot Template"),
         "num_colors": st.session_state.get("num_colors", 6),
@@ -478,6 +479,7 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
     blob = bucket.blob(settings_file_key)
     blob.upload_from_string(json.dumps(project_settings), content_type="application/json")
 
+
     # Generate the ZIP file with the final files using Stripe session ID
     zip_key = f"zips/{stripe_session_id}.zip"
     with io.BytesIO() as zip_buffer:
@@ -490,11 +492,13 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
         blob = bucket.blob(zip_key)
         blob.upload_from_string(zip_data, content_type="application/zip")
 
+
     # Save the Stripe session ID to Firebase for validation
     stripe_session_key = f"sessions/{stripe_session_id}/stripe_session.json"
     session_data = {"client_reference_id": stripe_session_id}
     blob = bucket.blob(stripe_session_key)
     blob.upload_from_string(json.dumps(session_data), content_type="application/json")
+
 
     # Generate payment link
     payment_url = checkout_session.url
