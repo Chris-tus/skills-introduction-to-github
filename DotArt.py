@@ -479,20 +479,31 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
     blob = bucket.blob(settings_file_key)
     blob.upload_from_string(json.dumps(project_settings), content_type="application/json")
 
-
     # Generate the ZIP file with the final files using Stripe session ID
     zip_key = f"zips/{stripe_session_id}.zip"
     with io.BytesIO() as zip_buffer:
         with zipfile.ZipFile(zip_buffer, "w") as zf:
-            zf.writestr("color_dot_map.png", "Dummy content for color dot map.")
-            zf.writestr("number_dot_map.png", "Dummy content for number dot map.")
-            zf.writestr("project_specification.pdf", "Dummy content for specification PDF.")
+            # Write the color dot map to the ZIP file
+            color_dot_map_buffer = io.BytesIO()
+            color_dot_img.save(color_dot_map_buffer, format="PNG")
+            color_dot_map_buffer.seek(0)
+            zf.writestr("color_dot_map.png", color_dot_map_buffer.read())
+    
+            # Write the number dot map to the ZIP file
+            number_dot_map_buffer = io.BytesIO()
+            numbers_img.save(number_dot_map_buffer, format="PNG")
+            number_dot_map_buffer.seek(0)
+            zf.writestr("number_dot_map.png", number_dot_map_buffer.read())
+    
+            # Write the project specification PDF to the ZIP file
+            pdf_buffer = create_project_specification_pdf(uploaded_file, color_dot_img, numbers_img, rhinestones, ignore_colors, labels)
+            zf.writestr("project_specification.pdf", pdf_buffer.read())
+    
         zip_buffer.seek(0)
         zip_data = zip_buffer.getvalue()
         blob = bucket.blob(zip_key)
         blob.upload_from_string(zip_data, content_type="application/zip")
-
-
+        
     # Save the Stripe session ID to Firebase for validation
     stripe_session_key = f"sessions/{stripe_session_id}/stripe_session.json"
     session_data = {"client_reference_id": stripe_session_id}
