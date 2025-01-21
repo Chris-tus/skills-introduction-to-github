@@ -4,7 +4,6 @@ from sklearn.cluster import KMeans
 import numpy as np
 import io
 import zipfile
-import uuid
 import firebase_admin
 import json
 import stripe
@@ -431,67 +430,14 @@ if not firebase_admin._apps:
 # Stripe API key from Streamlit secrets
 stripe.api_key = st.secrets["stripe_credentials"]["stripe_secret_key"]
 
-# Stripe payment base URL from Streamlit secrets
-PAYMENT_BASE_URL = st.secrets["stripe_credentials"]["stripe_payment_base_url"]
-
-# Generate a unique session ID if not already created
-if "download_session_id" not in st.session_state:
-    st.session_state.download_session_id = str(uuid.uuid4())  # Generate a random UUID
-
-# Reference the default storage bucket
-bucket = storage.bucket()  # No need to hardcode or specify the bucket URL again
+# Reference Firebase storage bucket
+bucket = storage.bucket()
 
 # Check if the uploaded file exists
 if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
     uploaded_file = st.session_state.uploaded_file
 
-    # Upload the user's original file to Firebase Storage if not already uploaded
-    original_file_key = f"uploads/{st.session_state.download_session_id}/{uploaded_file.name}"
-    if original_file_key not in st.session_state:
-        uploaded_file.seek(0)  # Reset file stream to the beginning
-        blob = bucket.blob(original_file_key)
-        blob.upload_from_file(uploaded_file, content_type=uploaded_file.type)
-        st.session_state["uploaded_file_key"] = original_file_key
-
-    # Save project settings as a JSON file in Firebase for future reference
-    project_settings = {
-        "project_title": st.session_state.get("project_title", "My Diamond Dot Template"),
-        "num_colors": st.session_state.get("num_colors", 6),
-        "rhinestone_size": st.session_state.get("rhinestone_size", 3.0),
-        "dot_shape": st.session_state.get("dot_shape", "Circle"),
-        "dot_alignment": st.session_state.get("dot_alignment", "Straight"),
-        "image_width": st.session_state.get("image_width", 30.0),
-        "image_height": st.session_state.get("image_height", 30.0),
-    }
-    settings_file_key = f"settings/{st.session_state.download_session_id}/project_settings.json"
-    if settings_file_key not in st.session_state:
-        blob = bucket.blob(settings_file_key)
-        blob.upload_from_string(json.dumps(project_settings), content_type="application/json")
-        st.session_state["settings_file_key"] = settings_file_key
-
-    # Generate the ZIP file with the final files
-    zip_key = f"zips/{st.session_state.download_session_id}.zip"
-    if zip_key not in st.session_state:
-        with io.BytesIO() as zip_buffer:
-            with zipfile.ZipFile(zip_buffer, "w") as zf:
-                zf.writestr("color_dot_map.png", "Dummy content for color dot map.")
-                zf.writestr("number_dot_map.png", "Dummy content for number dot map.")
-                zf.writestr("project_specification.pdf", "Dummy content for specification PDF.")
-            zip_buffer.seek(0)
-            zip_data = zip_buffer.getvalue()
-
-        # Upload ZIP file to Firebase
-        blob = bucket.blob(zip_key)
-        blob.upload_from_string(zip_data, content_type="application/zip")
-        st.session_state["zip_file_key"] = zip_key
-
-    # Save the session ID to Firebase for validation
-    stripe_session_key = f"sessions/{st.session_state.download_session_id}/stripe_session.json"
-    blob = bucket.blob(stripe_session_key)
-    stripe_session_data = {"client_reference_id": st.session_state.download_session_id}
-    blob.upload_from_string(json.dumps(stripe_session_data), content_type="application/json")
-
-    # Create Stripe Checkout Session with the client reference ID as metadata
+    # Create Stripe Checkout Session with metadata for file identification
     checkout_session = stripe.checkout.Session.create(
         payment_method_types=["card"],
         line_items=[
@@ -507,8 +453,48 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
         mode="payment",
         success_url=f"https://downloads.streamlit.app/?session_id={{CHECKOUT_SESSION_ID}}&paid=true",
         cancel_url="https://your-cancel-url.com",
-        metadata={"client_reference_id": st.session_state.download_session_id},
     )
+
+    # Get the Stripe session ID
+    stripe_session_id = checkout_session["id"]
+
+    # Upload the user's original file to Firebase Storage using Stripe session ID
+    original_file_key = f"uploads/{stripe_session_id}/{uploaded_file.name}"
+    uploaded_file.seek(0)  # Reset file stream to the beginning
+    blob = bucket.blob(original_file_key)
+    blob.upload_from_file(uploaded_file, content_type=uploaded_file.type)
+
+    # Save project settings as a JSON file in Firebase using Stripe session ID
+    project_settings = {
+        "project_title": st.session_state.get("project_title", "My Diamond Dot Template"),
+        "num_colors": st.session_state.get("num_colors", 6),
+        "rhinestone_size": st.session_state.get("rhinestone_size", 3.0),
+        "dot_shape": st.session_state.get("dot_shape", "Circle"),
+        "dot_alignment": st.session_state.get("dot_alignment", "Straight"),
+        "image_width": st.session_state.get("image_width", 30.0),
+        "image_height": st.session_state.get("image_height", 30.0),
+    }
+    settings_file_key = f"settings/{stripe_session_id}/project_settings.json"
+    blob = bucket.blob(settings_file_key)
+    blob.upload_from_string(json.dumps(project_settings), content_type="application/json")
+
+    # Generate the ZIP file with the final files using Stripe session ID
+    zip_key = f"zips/{stripe_session_id}.zip"
+    with io.BytesIO() as zip_buffer:
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("color_dot_map.png", "Dummy content for color dot map.")
+            zf.writestr("number_dot_map.png", "Dummy content for number dot map.")
+            zf.writestr("project_specification.pdf", "Dummy content for specification PDF.")
+        zip_buffer.seek(0)
+        zip_data = zip_buffer.getvalue()
+        blob = bucket.blob(zip_key)
+        blob.upload_from_string(zip_data, content_type="application/zip")
+
+    # Save the Stripe session ID to Firebase for validation
+    stripe_session_key = f"sessions/{stripe_session_id}/stripe_session.json"
+    session_data = {"client_reference_id": stripe_session_id}
+    blob = bucket.blob(stripe_session_key)
+    blob.upload_from_string(json.dumps(session_data), content_type="application/json")
 
     # Generate payment link
     payment_url = checkout_session.url
