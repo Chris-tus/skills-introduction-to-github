@@ -4,7 +4,6 @@ from sklearn.cluster import KMeans
 import numpy as np
 import io
 import zipfile
-import uuid
 import firebase_admin
 import json
 import stripe
@@ -432,41 +431,40 @@ if not firebase_admin._apps:
 stripe.api_key = st.secrets["stripe_credentials"]["stripe_secret_key"]
 
 # Reference Firebase storage bucket
-bucket = storage.bucket()  # No need to hardcode or specify the bucket URL again
+bucket = storage.bucket()
 
-# Generate a unique session ID if not already created
-if "download_session_id" not in st.session_state:
-    st.session_state.download_session_id = str(uuid.uuid4())  # Generate a random UUID
+# Check if the uploaded file exists
+if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
+    uploaded_file = st.session_state.uploaded_file
 
-# Create Stripe Checkout Session
-checkout_session = stripe.checkout.Session.create(
-    payment_method_types=["card"],
-    line_items=[
-        {
-            "price_data": {
-                "currency": "aud",
-                "product_data": {"name": "Diamond Dot Template"},
-                "unit_amount": 200,  # $2.00
-            },
-            "quantity": 1,
-        }
-    ],
-    mode="payment",
-    success_url=f"https://downloads.streamlit.app/?session_id={{CHECKOUT_SESSION_ID}}&paid=true",
-    cancel_url="https://your-cancel-url.com",
-    metadata={"client_reference_id": st.session_state.download_session_id},
-)
+    # Create Stripe Checkout Session with metadata for file identification
+    checkout_session = stripe.checkout.Session.create(
+        payment_method_types=["card"],
+        line_items=[
+            {
+                "price_data": {
+                    "currency": "aud",
+                    "product_data": {"name": "Diamond Dot Template"},
+                    "unit_amount": 200,  # $2.00
+                },
+                "quantity": 1,
+            }
+        ],
+        mode="payment",
+        success_url=f"https://downloads.streamlit.app/?session_id={{CHECKOUT_SESSION_ID}}&paid=true",
+        cancel_url="https://your-cancel-url.com",
+    )
 
-# Use Stripe session ID for file naming
-stripe_session_id = checkout_session["id"]  # Stripe's generated session ID
+    # Get the Stripe session ID
+    stripe_session_id = checkout_session["id"]
 
-# Save files to Firebase using Stripe session ID
-uploaded_file = st.session_state.uploaded_file
-if uploaded_file:
+    # Upload the user's original file to Firebase Storage using Stripe session ID
     original_file_key = f"uploads/{stripe_session_id}/{uploaded_file.name}"
-    blob = bucket.blob(original_file_key)
     uploaded_file.seek(0)  # Reset file stream to the beginning
+    blob = bucket.blob(original_file_key)
     blob.upload_from_file(uploaded_file, content_type=uploaded_file.type)
+
+    # Save project settings as a JSON file in Firebase using Stripe session ID
 
     project_settings = {
         "project_title": st.session_state.get("project_title", "My Diamond Dot Template"),
@@ -481,6 +479,8 @@ if uploaded_file:
     blob = bucket.blob(settings_file_key)
     blob.upload_from_string(json.dumps(project_settings), content_type="application/json")
 
+
+    # Generate the ZIP file with the final files using Stripe session ID
     zip_key = f"zips/{stripe_session_id}.zip"
     with io.BytesIO() as zip_buffer:
         with zipfile.ZipFile(zip_buffer, "w") as zf:
@@ -492,23 +492,25 @@ if uploaded_file:
         blob = bucket.blob(zip_key)
         blob.upload_from_string(zip_data, content_type="application/zip")
 
-    # Save session data to Firebase
+
+    # Save the Stripe session ID to Firebase for validation
     stripe_session_key = f"sessions/{stripe_session_id}/stripe_session.json"
     session_data = {"client_reference_id": stripe_session_id}
     blob = bucket.blob(stripe_session_key)
     blob.upload_from_string(json.dumps(session_data), content_type="application/json")
 
-# Generate payment link
-payment_url = checkout_session.url
 
-# Display the payment button
-st.markdown(
-    f"""
-    <a href="{payment_url}" target="_blank">
-        <button style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
-            Proceed to Payment ($2)
-        </button>
-    </a>
-    """,
-    unsafe_allow_html=True,
-)
+    # Generate payment link
+    payment_url = checkout_session.url
+
+    # Display the payment button
+    st.markdown(
+        f"""
+        <a href="{payment_url}" target="_blank">
+            <button style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                Proceed to Payment ($2)
+            </button>
+        </a>
+        """,
+        unsafe_allow_html=True,
+    )
