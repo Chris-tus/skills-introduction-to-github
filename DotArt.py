@@ -444,8 +444,8 @@ if "uploaded_file" in st.session_state and st.session_state.uploaded_file:
             {
                 "price_data": {
                     "currency": "aud",
-                    "product_data": {"name": "Diamond Dot Template"},
-                    "unit_amount": 200,  # $2.00
+                    "product_data": {"name": "Diamond Dot Template - Free to use during testing!"},
+                    "unit_amount": 0,  # $.00
                 },
                 "quantity": 1,
             }
